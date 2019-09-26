@@ -18,32 +18,33 @@ countryContinentMapping = gapminderDf %>%
   distinct(country,continent,.keep_all = TRUE)
 
 
-joinedDf_expectancy = inner_join(lifeExpectancyDf,countryContinentMapping)
-joinedDf_expectancy = joinedDf_expectancy %>% select(country,continent,everything())
+expectancy_gdp = lifeExpectancyDf %>% 
+  inner_join(gdpPerCapitaDf,by = c("country" = "country"),suffix =  c("_exp", "_gdp"))
 
 
 
 
-ExpectencyByContinent = joinedDf_expectancy %>% 
-  select(continent,"2016.0") %>% 
-  group_by(continent) %>% summarise(meanValues = mean(`2016.0`))
-
-# ggplot(ExpectencyByContinent, aes(x = Con, y = lifeExp, color = continent)) + geom_point(alpha = 0.3) + 
-#   scale_x_log10() + scale_color_manual(values = cb_palette) + 
-#   geom_smooth(method = "lm", se = FALSE)
+##joining continent information
+expectancy_gdp_cont = expectancy_gdp %>% 
+  inner_join(countryContinentMapping,by = c("country" = "country"))
 
 
-### gdp per capita data manips
+
+expectancy_gdp_cont = expectancy_gdp_cont %>% 
+  select(country,continent,everything())
 
 
-gdpPerCapitaDf = gdpPerCapitaDf %>% rename(country = "GDP per capita")
 
-joinedDf_gdp = gdpPerCapitaDf %>% 
-  inner_join(countryContinentMapping,by = c('country'='country'))
+Exp_GDP_Cont_2018 = expectancy_gdp_cont %>% 
+  select(country,continent,X2018_exp,X2018_gdp)
+  # group_by(continent) %>% 
+  # summarise(meanExpect_2018 = mean(X2018_exp,na.rm=TRUE),meanGDP_2018 = mean(X2018_gdp,na.rm=TRUE))
+
+ggplot(Exp_GDP_Cont_2018, aes(x = X2018_exp, y = X2018_gdp)) + 
+  
+  geom_point(alpha = 0.3) +geom_smooth(method = "lm", se = FALSE)+ facet_grid(rows = "continent")
 
 
-GDPByContinent = joinedDf_gdp %>% 
-  select(continent,"2015.0") %>% 
-  group_by(continent) %>% summarise(meanValues = mean(`2015.0`))
+
 
 
