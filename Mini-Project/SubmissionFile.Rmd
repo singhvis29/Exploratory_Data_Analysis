@@ -1,6 +1,11 @@
+```{r}
 library(gapminder)
 library(tidyverse)
+```
 
+
+## Data Manipulation
+```{r}
 gapminderDf = gapminder
 
 cb_palette <- c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
@@ -40,19 +45,26 @@ Exp_GDP_Cont_2018 = expectancy_gdp_cont %>%
   select(country,continent,X2018_exp,X2018_gdp)
   # group_by(continent) %>% 
   # summarise(meanExpect_2018 = mean(X2018_exp,na.rm=TRUE),meanGDP_2018 = mean(X2018_gdp,na.rm=TRUE))
+```
 
+
+
+## Plot q1
+
+```{r}
 ggplot(Exp_GDP_Cont_2018, aes(x = X2018_exp, y = X2018_gdp)) + 
   
   geom_point(alpha = 0.3)+scale_color_manual(values = cb_palette)+
   geom_smooth(method = "lm", se = FALSE)+ facet_grid(rows = "continent")
 
 
+```
 
 
+## Question 2
+Data Manipulation
 
-####Question 2
-
-
+```{r}
 lifeExpectancyDf_cont = lifeExpectancyDf %>% 
   inner_join(countryContinentMapping,by = c("country" = "country"))
 
@@ -67,13 +79,14 @@ avgLifeExp_Long = avgLifeExpectancy_cont %>%
 avgLifeExp_Long_postWW = avgLifeExp_Long %>% filter(Year > 1945)
 
 
+```
+
+
+## Plot 
+
+
+```{r}
 ggplot(avgLifeExp_Long_postWW,aes(x = Year,y = Expectancy))+geom_point(alpha = 0.3)+scale_color_manual(values = cb_palette)+
   geom_smooth(method = "lm", se = FALSE)+ facet_grid(rows = "continent")
 
-
-
-
-
-
-
-
+```
