@@ -41,11 +41,35 @@ Exp_GDP_Cont_2018 = expectancy_gdp_cont %>%
   # group_by(continent) %>% 
   # summarise(meanExpect_2018 = mean(X2018_exp,na.rm=TRUE),meanGDP_2018 = mean(X2018_gdp,na.rm=TRUE))
 
+<<<<<<< HEAD
 ggplot(Exp_GDP_Cont_2018, aes(x = X2018_gdp, y = X2018_exp,color = continent)) + 
   
   geom_point(alpha = 0.3)+scale_color_manual(values = cb_palette)+
   geom_smooth(method = "lm", se = FALSE)+ facet_grid(rows = "continent")+
   theme(legend.position = "none")
+=======
+mean_gdp = mean(Exp_GDP_Cont_2018$X2018_exp)
+mean_lifeexp = mean(Exp_GDP_Cont_2018$X2018_gdp, na.rm = TRUE)
+
+exp_gdp_cont_agg_2018 = Exp_GDP_Cont_2018  %>%
+  group_by(continent) %>%
+  summarise(meanExpect_2018 = mean(X2018_exp,na.rm=TRUE),
+            meanGDP_2018 = mean(X2018_gdp,na.rm=TRUE),
+            varexp_2018 = var(X2018_exp, na.rm = TRUE),
+            varGDP_2018 = var(X2018_gdp, na.rm = TRUE),
+            cor_exp_gdp_2018 = cor(X2018_gdp, X2018_exp, use = "complete.obs"))
+
+write.csv(exp_gdp_cont_agg_2018, "2018_continent_average.csv")
+
+ggplot(Exp_GDP_Cont_2018, aes(x = X2018_exp, y = X2018_gdp)) + 
+  geom_point(alpha = 0.3)+scale_color_manual(values = cb_palette)+
+  geom_smooth(method = "lm", se = FALSE)+ facet_grid(rows = "continent") +
+  scale_color_manual(values = cb_palette)
+
+
+
+
+>>>>>>> f88ad55ccaa01f4c92973c31dbe3f9a5c160223e
 
   
 ####Question 2
