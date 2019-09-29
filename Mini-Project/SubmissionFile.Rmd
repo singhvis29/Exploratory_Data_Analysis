@@ -43,8 +43,6 @@ expectancy_gdp_cont = expectancy_gdp_cont %>%
 
 Exp_GDP_Cont_2018 = expectancy_gdp_cont %>% 
   select(country,continent,X2018_exp,X2018_gdp)
-  # group_by(continent) %>% 
-  # summarise(meanExpect_2018 = mean(X2018_exp,na.rm=TRUE),meanGDP_2018 = mean(X2018_gdp,na.rm=TRUE))
 ```
 
 
@@ -52,10 +50,12 @@ Exp_GDP_Cont_2018 = expectancy_gdp_cont %>%
 ## Plot q1
 
 ```{r}
-ggplot(Exp_GDP_Cont_2018, aes(x = X2018_exp, y = X2018_gdp)) + 
+ggplot(Exp_GDP_Cont_2018, aes(x = X2018_gdp, y = X2018_exp,color = continent))+ 
   
   geom_point(alpha = 0.3)+scale_color_manual(values = cb_palette)+
-  geom_smooth(method = "lm", se = FALSE)+ facet_grid(rows = "continent")
+  geom_smooth(method = "lm", se = FALSE)+ facet_grid(rows = "continent")+
+  theme(legend.position = "none")
+
 
 
 ```
@@ -78,6 +78,9 @@ avgLifeExp_Long = avgLifeExpectancy_cont %>%
 
 avgLifeExp_Long_postWW = avgLifeExp_Long %>% filter(Year > 1945)
 
+avgLifeExp_Long_postWW = avgLifeExp_Long_postWW %>% 
+                        mutate(YearsBinned = cut(Year,5,dig.lab = 4))
+
 
 ```
 
@@ -86,7 +89,55 @@ avgLifeExp_Long_postWW = avgLifeExp_Long %>% filter(Year > 1945)
 
 
 ```{r}
-ggplot(avgLifeExp_Long_postWW,aes(x = Year,y = Expectancy))+geom_point(alpha = 0.3)+scale_color_manual(values = cb_palette)+
-  geom_smooth(method = "lm", se = FALSE)+ facet_grid(rows = "continent")
+
+ggplot(avgLifeExp_Long_postWW,aes(x = Year,y = Expectancy,color = continent))+geom_point(alpha = 0.3)+scale_color_manual(values = cb_palette)+
+  geom_smooth(method = "lm", se = FALSE)+ facet_grid(rows = vars(continent),cols = vars(YearsBinned))+
+  theme(legend.position = "none")
+
+
+ggplot(avgLifeExp_Long_postWW,aes(x = Year,y = Expectancy,color = continent))+geom_point(alpha = 0.3)+scale_color_manual(values = cb_palette)+
+  geom_smooth(method = "lm", se = FALSE)+ facet_grid(rows = vars(continent))+
+  theme(legend.position = "none")
+```
+
+
+
+
+
+### Question 3
+
+```{r}
+expectancyLong = lifeExpectancyDf %>% 
+  gather(key = "Year",value = "Expectancy",'X1800':"X2018") %>% 
+  mutate(Year = str_replace(Year,'X','')) %>% 
+  mutate(Year = as.integer(Year)) %>% inner_join(countryContinentMapping,by = c("country" = "country")) %>% 
+  select(country,continent,everything())
+  
+gdpLong = gdpPerCapitaDf %>% 
+  gather(key = "Year",value = "GDP/Capita",'X1764':"X2018") %>% 
+  mutate(Year = str_replace(Year,'X','')) %>% 
+  mutate(Year = as.integer(Year)) %>% inner_join(countryContinentMapping,by = c("country" = "country")) %>% 
+  select(country,continent,everything())
+
+
+consolidatedDf = expectancyLong %>% 
+              inner_join(gdpLong) %>% filter("Year">1945,"GDP/Capita" > 0) %>% 
+              mutate(YearBins = cut(Year,6,dig.lab = 4))
+
+consolidatedDf = consolidatedDf %>% select(-Year) %>%    group_by(country,continent,YearBins) %>% summarise_all(mean)
+
+
+
+consolidatedDf = consolidatedDf %>% drop_na()
+
+```
+
+### Plot
+```{r}
+ggplot(consolidatedDf,aes(y = Expectancy,x = `GDP/Capita`,color = continent))+
+  scale_color_manual(values = cb_palette)+
+  geom_smooth(method = "lm", se = FALSE)+facet_grid(rows = "YearBins")
+
+
 
 ```
