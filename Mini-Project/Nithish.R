@@ -8,7 +8,7 @@ cb_palette <- c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2"
 ##load data
 
 lifeExpectancyDf  = read.csv('life_expectancy_years.csv')
-gdpPerCapitaDf = read.csv('income_per_person_with_projections.csv' )
+gdpPerCapitaDf = read.csv('income_per_person_gdppercapita_ppp_inflation_adjusted.csv' )
 
 
 ## getinng continent mapping from gapminder df
@@ -41,13 +41,12 @@ Exp_GDP_Cont_2018 = expectancy_gdp_cont %>%
   # group_by(continent) %>% 
   # summarise(meanExpect_2018 = mean(X2018_exp,na.rm=TRUE),meanGDP_2018 = mean(X2018_gdp,na.rm=TRUE))
 
-<<<<<<< HEAD
 ggplot(Exp_GDP_Cont_2018, aes(x = X2018_gdp, y = X2018_exp,color = continent)) + 
   
   geom_point(alpha = 0.3)+scale_color_manual(values = cb_palette)+
   geom_smooth(method = "lm", se = FALSE)+ facet_grid(rows = "continent")+
   theme(legend.position = "none")
-=======
+
 mean_gdp = mean(Exp_GDP_Cont_2018$X2018_exp)
 mean_lifeexp = mean(Exp_GDP_Cont_2018$X2018_gdp, na.rm = TRUE)
 
@@ -69,7 +68,6 @@ ggplot(Exp_GDP_Cont_2018, aes(x = X2018_exp, y = X2018_gdp)) +
 
 
 
->>>>>>> f88ad55ccaa01f4c92973c31dbe3f9a5c160223e
 
   
 ####Question 2

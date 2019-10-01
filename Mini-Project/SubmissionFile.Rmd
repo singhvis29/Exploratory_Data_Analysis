@@ -13,7 +13,9 @@ cb_palette <- c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2"
 ##load data
 
 lifeExpectancyDf  = read.csv('life_expectancy_years.csv')
-gdpPerCapitaDf = read.csv('income_per_person_with_projections.csv' )
+gdpPerCapitaDf = read.csv('income_per_person_gdppercapita_ppp_inflation_adjusted.csv' )
+populationTotalDf = read.csv("population_total.csv")
+
 
 
 ## getinng continent mapping from gapminder df
@@ -43,6 +45,8 @@ expectancy_gdp_cont = expectancy_gdp_cont %>%
 
 Exp_GDP_Cont_2018 = expectancy_gdp_cont %>% 
   select(country,continent,X2018_exp,X2018_gdp)
+
+
 ```
 
 
@@ -65,21 +69,29 @@ ggplot(Exp_GDP_Cont_2018, aes(x = X2018_gdp, y = X2018_exp,color = continent))+
 Data Manipulation
 
 ```{r}
-lifeExpectancyDf_cont = lifeExpectancyDf %>% 
-  inner_join(countryContinentMapping,by = c("country" = "country"))
 
-avgLifeExpectancy_cont = lifeExpectancyDf_cont %>% select(-country) %>% 
-  group_by(continent) %>% summarise_all(mean)
-
-avgLifeExp_Long = avgLifeExpectancy_cont %>% 
-  gather(.,"Year","Expectancy",'X1800':"X2018") %>% 
+expectancyLong = lifeExpectancyDf %>% 
+  gather(key = "Year",value = "Expectancy",'X1800':"X2018") %>% 
   mutate(Year = str_replace(Year,'X','')) %>% 
-  mutate(Year = as.integer(Year))
+  mutate(Year = as.integer(Year)) %>% inner_join(countryContinentMapping,by = c("country" = "country")) %>% 
+  select(country,continent,everything())
 
-avgLifeExp_Long_postWW = avgLifeExp_Long %>% filter(Year > 1945)
 
-avgLifeExp_Long_postWW = avgLifeExp_Long_postWW %>% 
-                        mutate(YearsBinned = cut(Year,5,dig.lab = 4))
+populationTotalLong = populationTotalDf %>% 
+  gather(key = "Year",value = "Population",'X1800':"X2100") %>% 
+  mutate(Year = str_replace(Year,'X','')) %>% 
+  mutate(Year = as.integer(Year)) %>% inner_join(countryContinentMapping,by = c("country" = "country")) %>% 
+  select(country,continent,everything())
+
+
+consolidatedExpec = expectancyLong %>% inner_join(populationTotalLong)
+
+
+avgLifeExp_Long_postWW = consolidatedExpec %>% select(-country) %>%
+                group_by(continent,Year) %>% mutate(weightedAvg =   weighted.mean(Expectancy,Population)) %>% 
+  distinct(continent,Year,weightedAvg) %>% 
+  filter(Year>=1945) %>% rename(Expectancy = weightedAvg)
+
 
 
 ```
@@ -90,14 +102,12 @@ avgLifeExp_Long_postWW = avgLifeExp_Long_postWW %>%
 
 ```{r}
 
-ggplot(avgLifeExp_Long_postWW,aes(x = Year,y = Expectancy,color = continent))+geom_point(alpha = 0.3)+scale_color_manual(values = cb_palette)+
-  geom_smooth(method = "lm", se = FALSE)+ facet_grid(rows = vars(continent),cols = vars(YearsBinned))+
-  theme(legend.position = "none")
 
 
 ggplot(avgLifeExp_Long_postWW,aes(x = Year,y = Expectancy,color = continent))+geom_point(alpha = 0.3)+scale_color_manual(values = cb_palette)+
   geom_smooth(method = "lm", se = FALSE)+ facet_grid(rows = vars(continent))+
   theme(legend.position = "none")
+
 ```
 
 
@@ -114,7 +124,7 @@ expectancyLong = lifeExpectancyDf %>%
   select(country,continent,everything())
   
 gdpLong = gdpPerCapitaDf %>% 
-  gather(key = "Year",value = "GDP/Capita",'X1764':"X2018") %>% 
+  gather(key = "Year",value = "GDP/Capita",'X1800':"X2018") %>% 
   mutate(Year = str_replace(Year,'X','')) %>% 
   mutate(Year = as.integer(Year)) %>% inner_join(countryContinentMapping,by = c("country" = "country")) %>% 
   select(country,continent,everything())
