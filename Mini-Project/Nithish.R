@@ -127,7 +127,7 @@ ggplot(consolidatedDf,aes(y = Expectancy,x = `GDP/Capita`,color = continent))+
   
 
 
-
+weighted.mean(x= c(1,2),w = c(2,3))
 
 
 
