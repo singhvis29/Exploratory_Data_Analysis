@@ -1,6 +1,8 @@
 library(gapminder)
 library(tidyverse)
+library(lme4)
 options(scipen=999)
+library(standardize)
 gapminderDf = gapminder
 
 cb_palette <- c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
@@ -41,6 +43,13 @@ Exp_GDP_Cont_2018 = expectancy_gdp_cont %>%
   # group_by(continent) %>% 
   # summarise(meanExpect_2018 = mean(X2018_exp,na.rm=TRUE),meanGDP_2018 = mean(X2018_gdp,na.rm=TRUE))
 
+#Exp_GDP_Cont_2018_norm = transform(data_header, z.v1 = (v1 - mean(v1, na.rm =T))/(2*sd(v1, na.rm =T)))
+
+Exp_GDP_Cont_2018_norm = Exp_GDP_Cont_2018
+
+lms_cont = lmList(X2018_exp ~ X2018_gdp | continent, data = Exp_GDP_Cont_2018)
+summary(lms_cont)
+
 ggplot(Exp_GDP_Cont_2018, aes(x = X2018_gdp, y = X2018_exp,color = continent)) + 
   
   geom_point(alpha = 0.3)+scale_color_manual(values = cb_palette)+
@@ -76,7 +85,7 @@ ggplot(Exp_GDP_Cont_2018, aes(x = X2018_exp, y = X2018_gdp)) +
 lifeExpectancyDf_cont = lifeExpectancyDf %>% 
   inner_join(countryContinentMapping,by = c("country" = "country"))
 
-avgLifeExpectancy_cont = lifeExpectancyDf_cont %>% select(-country) %>% 
+avgLifeExpectancy_cont = lifeExpectancyDf_cont %>% 
   group_by(continent) %>% summarise_all(mean)
 
 avgLifeExp_Long = avgLifeExpectancy_cont %>% 
@@ -91,6 +100,12 @@ ggplot(avgLifeExp_Long_postWW,aes(x = Year,y = Expectancy,color = continent))+ge
   geom_smooth(method = "lm", se = FALSE)+ facet_grid(rows = "continent")+
   theme(legend.position = "none")
 
+ggplot(avgLifeExp_Long_postWW,aes(x = Year,y = Expectancy,color = continent))+geom_point(alpha = 0.3)+scale_color_manual(values = cb_palette)+
+  geom_smooth(method = "lm", se = FALSE)+ facet_grid(rows = "continent")+
+  theme(legend.position = "none")
+
+lms_cont_q2 = lmList(Expectancy ~ Year | continent, data = avgLifeExp_Long_postWW)
+summary(lms_cont_q2)
 
 
 #### Question 3
@@ -104,7 +119,7 @@ expectancyLong = lifeExpectancyDf %>%
   select(country,continent,everything())
   
 gdpLong = gdpPerCapitaDf %>% 
-  gather(key = "Year",value = "GDP/Capita",'X1764':"X2018") %>% 
+  gather(key = "Year",value = "GDP/Capita",'X1800':"X2018") %>% 
   mutate(Year = str_replace(Year,'X','')) %>% 
   mutate(Year = as.integer(Year)) %>% inner_join(countryContinentMapping,by = c("country" = "country")) %>% 
   select(country,continent,everything())
