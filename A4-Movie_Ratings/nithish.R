@@ -10,6 +10,9 @@ RatingsWithBasics = titleBasics %>% inner_join(titleRatings) %>%
 rm(titleBasics,titleRatings)
 
 
+
+
+### without any transoformations
 linearModel = lm(averageRating~ startYear+runtimeMinutes,data =RatingsWithBasics )
 
 linearModel %>% summary()
@@ -30,14 +33,18 @@ transformed = RatingsWithBasics %>%
 
 
 
+
 selectedVars = RatingsWithBasics %>% 
   select(startYear,runtimeMinutes,numVotes,averageRating) %>% 
   filter(runtimeMinutes>0) %>% 
   mutate(startYear = as.integer(startYear)) %>% 
   mutate(cutYears = cut(startYear,5,dig.lab = 4))%>% 
+  mutate(zeroedStartYear = startYear-min(startYear,na.rm = TRUE)) %>% 
+  
   drop_na()
 
 
+## removing outliers in runtimeMinutes
 outliers  =  boxplot(selectedVars$runtimeMinutes, plot=FALSE)$out
 
 selectedVars = selectedVars[-which(selectedVars$runtimeMinutes %in% outliers),]
@@ -55,7 +62,7 @@ sum(is.na(selectedVars$averageRating))
 
 
 
-### linear model fitted
+### linear model fitted on transformed
 lm(averageRating~ startYear+runtimeMinutes,data = transformed) %>%
   summary()
 
@@ -66,7 +73,7 @@ lm(averageRating~ startYear+runtimeMinutes,data = transformed) %>%
 library(broom)
 library(mgcv)
 
-modelGAM = gam(averageRating ~ s(startYear)+s(runtimeMinutes),data = selectedVars)
+modelGAM = gam(averageRating ~ s(zeroedStartYear)+s(runtimeMinutes),data = selectedVars)
 summary(modelGAM)
 
 
@@ -88,7 +95,7 @@ ggplot(selectedVars, aes(x = runtimeMinutes, y = averageRating)) +
 
 
 ### conditioned on runtime
-ggplot(selectedVars, aes(x = startYear, y = averageRating)) + 
+ggplot(selectedVars, aes(x = zeroedStartYear, y = averageRating)) + 
   geom_point() + 
   facet_grid(rows = vars(cutRuntimeMinutes)) +
   geom_smooth(method = "gam", se = FALSE)
@@ -101,8 +108,21 @@ ggplot(selectedVars, aes(x = startYear, y = averageRating)) +
 #### Question 3 ####
 
 library(lattice)
-ggplot(predModelGAM, aes(x = startYear, y = runtimeMinutes, z = .fitted)) + 
-  geom_raster(aes(fill=.fitted)) + 
+
+
+
+
+gridForContour = expand.grid(zeroedStartYear = seq(0,125,1),
+                             runtimeMinutes = seq(50,133,1))
+  
+  
+contourGridPredictions = predict(modelGAM,newdata = gridForContour)
+
+contourDf = data.frame(gridForContour,fit = as.vector(contourGridPredictions))
+
+
+ggplot(contourDf, aes(x = zeroedStartYear, y = runtimeMinutes, z = fit)) + 
+  geom_raster(aes(fill=fit)) + 
   scale_fill_distiller(palette = "RdBu") +
   geom_contour() + coord_fixed()
 
