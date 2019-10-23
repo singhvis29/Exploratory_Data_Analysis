@@ -1,0 +1,210 @@
+---
+title: "A4- Movie ratings"
+author: "Srinithish Kandagadla and Vishal Singh"
+date: "October 10, 2019"
+output:
+  pdf_document: default
+  html_document: default
+editor_options: 
+  chunk_output_type: inline
+  fig_width: 6 
+  fig_height: 4
+---
+
+```{r setup, include=FALSE, echo=FALSE}
+knitr::opts_chunk$set(echo = TRUE, tidy = TRUE)
+library(dplyr)
+library(tidyverse)
+library(mgcv)
+library(broom)
+cb_palette <- c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+```
+
+
+```{r message=FALSE, warning=FALSE, echo=FALSE}
+basics = read_tsv("title.basics.tsv/data.tsv", na = "\\N", quote = '')
+ratings = read_tsv("title.ratings.tsv/data.tsv", na = "\\N", quote = '')
+```
+
+## Question 1
+
+### Data Manipulation
+
+```{r}
+title_ratings = basics %>% inner_join(ratings, by = 'tconst')
+
+title_ratings = title_ratings %>%
+  filter(titleType == "movie") %>%
+  select(startYear, runtimeMinutes, numVotes, averageRating) %>%
+  mutate(startYear = as.integer(startYear)) %>% 
+  mutate(yearsinceStart = startYear-min(startYear,na.rm = TRUE)) %>%  ##Years passed since the release of first movie
+  drop_na()
+
+title_ratings$log_runtimeMinutes = log10(title_ratings$runtimeMinutes)
+title_ratings$sqrt_runtimeMinutes = sqrt(title_ratings$runtimeMinutes)
+
+title_ratings$log_yearsinceStart = log10(title_ratings$yearsinceStart)
+title_ratings$sqrt_yearsinceStart = sqrt(title_ratings$yearsinceStart)
+
+title_ratings = title_ratings %>% 
+filter_all(all_vars(is.finite(.)))
+```
+
+### a. Transformations  
+
+```{r}
+#Using given variables
+lm_model_nt = lm(averageRating ~ runtimeMinutes + yearsinceStart, data = title_ratings)
+
+#Using log transformed variable
+lm_model_log = lm(averageRating ~ log_runtimeMinutes + log_yearsinceStart, data = title_ratings)
+
+#Using sqrt transformed variables
+lm_model_sqrt = lm(averageRating ~ sqrt_runtimeMinutes + sqrt_yearsinceStart, data = title_ratings)
+```
+
+
+**R-squared value for linear model trained using given variables: 0.00055** <br>
+**R-squared value for linear model trained using log transformed variables: 0.00021** <br>
+**R-squared value for linear model trained using sqrt transformed variables: 0.00081** <br>
+
+The value of R-squared does not improve much even if we transform the variable runtimeMinutes and yearsinceStart. Therefore, we conclude that transformation of variable doesn't help us. <br>
+
+```{r}
+
+ggplot(title_ratings, aes(x = runtimeMinutes, y = averageRating)) +
+  geom_point() +
+  geom_smooth() +
+  labs(title = "Linear Model",x = "Average Rating",y = "Runtime Minutes", caption="Figure 1")
+
+```
+
+### b. Plotting Residuals
+
+```{r}
+title_ratings_lm = lm(averageRating ~ runtimeMinutes + yearsinceStart, data = title_ratings)
+title_ratings_lm.df = augment(title_ratings_lm)
+
+ggplot(title_ratings_lm.df, aes(x = yearsinceStart, y = .resid)) +
+  geom_point() + geom_smooth(method = "lm", se = FALSE) + 
+  facet_wrap(~cut_number(runtimeMinutes, n = 4)) +
+  labs(title = "Residual vs Years since Start",x = "Years since start",y = "Residual", caption="Figure 2")
+```
+
+For difference windows of Runtimes, if we plot residuals against years since start, we can observe that the residuals diverge as years on increase years since start indicating that linear model is not a good fit for this data <br>
+
+### c. Additive Model
+
+```{r}
+title_ratings.gam = gam(averageRating ~ s(runtimeMinutes) + s(yearsinceStart), data = title_ratings)
+#print(summary(title_ratings.gam))
+```
+
+We obtain R-squared value of 0.01, therefore, we can say that additive model is not adequate <br>
+
+### Removing Outliers
+
+```{r}
+
+outliers  =  boxplot(title_ratings$runtimeMinutes, plot=FALSE)$out
+title_ratings_wo_outliers = title_ratings[-which(title_ratings$runtimeMinutes %in% outliers),]
+
+```
+
+```{r}
+ggplot(title_ratings_wo_outliers, aes(x = log_runtimeMinutes, y = averageRating)) +
+  geom_point() +
+  geom_smooth() +
+  labs(title = "Average Rating vs Runtime in Minutes",x = "Log of Runtime in Minutes",y = "Average Rating", caption="Figure 3")
+```
+
+```{r}
+title_ratings_wo_outliers.gam = gam(averageRating ~ s(sqrt_runtimeMinutes) + s(sqrt_yearsinceStart), data = title_ratings_wo_outliers)
+#print(summary(title_ratings_wo_outliers.gam))
+```
+
+After removing outliers, we obtain R-squared values in the range 0.03 which is an improvement over the values obtained with outliers but still isn't good enough to justify  using GAM for this data <br>
+
+```{r}
+title_ratings_lm_wo_outliers = lm(averageRating ~ runtimeMinutes + yearsinceStart, data = title_ratings_wo_outliers)
+title_ratings_lm_wo_outliers.df = augment(title_ratings_lm_wo_outliers)
+
+ggplot(title_ratings_lm_wo_outliers.df, aes(x = yearsinceStart, y = .resid)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE) +
+  facet_wrap(~cut_number(runtimeMinutes, n = 4)) +
+  labs(title = "Residual vs Years since Start (after removing outliers)",x = "Years since start",y = "Residual", caption="Figure 4")
+```
+
+For difference windows of Runtimes, if we plot residuals against years since start, we can observe that the residuals diverge as years on increase years since start indicating that linear model is not a good fit for this data even after removing the outliers<br>
+
+### e. Weight by Number of Votes
+
+```{r}
+title_ratings_wo_outliers = title_ratings_wo_outliers %>% mutate(weighted_averageRating = (averageRating * numVotes))
+title_ratings_wo_outliers.gam2 = gam(weighted_averageRating ~ s(runtimeMinutes) + s(yearsinceStart), data = title_ratings_wo_outliers)
+#print(summary(title_ratings_wo_outliers.gam2))
+
+```
+
+Even after weighting by number of votes, and plotting a GAM, we observe that the value of R-squared is 0.02, which means that taking weights also does help justify a GAM model for this data. 
+
+## Question 2.
+
+After looking at different models for the given data, we decide on selecting data after removing outliers, we plot the average rating against runtime in minutes where runtime is not transformed. We observe a similar pattern for all window of years. Nothing conclusive can be said about the relation between Average Rating and Runtime from this plot and GAM model in general.
+
+```{r}
+title_ratings_wo_outliers = title_ratings_wo_outliers %>% 
+  mutate(cutRuntimeMinutes = cut(runtimeMinutes,
+                        breaks = c(0,81,90,100,135),
+                        dig.lab = 6)) %>% 
+  mutate(cutYears = cut(startYear,5,dig.lab = 4))
+
+## conditioned on years
+ggplot(title_ratings_wo_outliers, aes(x = runtimeMinutes, y = averageRating)) +
+  geom_point(size = 0.05) +
+  facet_grid(rows = vars(cutYears)) +
+  geom_smooth(method = "gam", se = FALSE,span = 0.5) +
+  labs(title = "GAM Model",x = "Runtime (in minutes)",y = "Average Rating", caption="Figure 5")
+```
+
+When we plot Average Rating against Years since start for the given data, we again see a similar pattern for all the windows for runtime. We can see that the data is randomly distributed and therefore, nothing conclusive can be interpreted from this plot of GAM model.
+
+```{r}
+## conditioned on runtime
+ggplot(title_ratings_wo_outliers, aes(x = yearsinceStart, y = averageRating)) + 
+  geom_point() + 
+  facet_grid(rows = vars(cutRuntimeMinutes)) +
+  geom_smooth(method = "gam", se = FALSE) +
+  labs(title = "GAM Model",x = "Years since Start",y = "Average Rating", caption="Figure 6")
+```
+
+## Question 3.
+
+We plot a contour plot of predicted values of average rating from the GAM model against the Runtime and Years since starting. We see that the GAM model predicts the highest values for movies which were released 60 and 120 years after release of first the movie and had an average runtime of arounf 50 minutes. The lowest rated values were  movies which were relased around the time when the first movie relased. Although a more complex model (e.g. quadratic) should be used to make definite predictions.
+
+```{r}
+modelGAM = gam(averageRating ~ s(yearsinceStart)+s(runtimeMinutes),data = title_ratings_wo_outliers)
+
+gridForContour = expand.grid(yearsinceStart = seq(0,125,1),
+                             runtimeMinutes = seq(50,133,1))
+  
+  
+contourGridPredictions = predict(modelGAM,newdata = gridForContour)
+
+contourDf = data.frame(gridForContour,fit = as.vector(contourGridPredictions))
+
+```
+
+```{r}
+ggplot(contourDf, aes(x = yearsinceStart, y = runtimeMinutes, z = fit)) + 
+  geom_raster(aes(fill=fit)) + 
+  scale_fill_distiller(palette = "RdBu") +
+  geom_contour() + coord_fixed()  +
+  labs(title = "GAM Model (Contour Plot)",x = "Years since Start",y = "Runtime (in Minutes)", z="Average Rating", caption="Figure 7")
+```
+
+## Question 4
+
+Higher runtime does not relate to higher IMDB rating according to the data as we can see longer movies also have a less rating. We conclude that GAM is ot adequate for modeling the relationship between Rating and Runtime conditioned by Year. 
+

@@ -89,8 +89,10 @@ expectancy_gdp_cont = expectancy_gdp_cont %>%
 Exp_GDP_Cont_2018 = expectancy_gdp_cont %>% 
   select(country,continent,X2018_exp,X2018_gdp)
 
-lm2018 = lm(data = Exp_GDP_Cont_2018, X2018_exp ~ X2018_gdp)
-lm2018_loess = loess(data = Exp_GDP_Cont_2018, X2018_exp ~ X2018_gdp)
+Exp_GDP_Cont_2018$X2018_gdp_log = log10(Exp_GDP_Cont_2018$X2018_gdp)
+
+lm2018 = lm(data = Exp_GDP_Cont_2018, X2018_exp ~ X2018_gdp_log)
+lm2018_loess = loess(data = Exp_GDP_Cont_2018, X2018_exp ~ X2018_gdp_log)
 
 exp_gdp_cont_agg_2018 = Exp_GDP_Cont_2018  %>%
   group_by(continent) %>%
@@ -105,16 +107,16 @@ names(exp_gdp_cont_agg_2018) = c("Continent", "Avg Life Expectancy", "Avg GDP", 
 ```
 
 ```{r message=FALSE, warning=FALSE, echo=FALSE, fig.width=6, fig.height=3, fig.align='center'}
-ggplot(Exp_GDP_Cont_2018, aes(x = X2018_gdp, y = X2018_exp))+ 
+ggplot(Exp_GDP_Cont_2018, aes(x = X2018_gdp_log, y = X2018_exp))+ 
   geom_point(alpha = 0.8)+
   geom_smooth(method = "lm", se = FALSE, aes(colour="Linear"))+
   geom_smooth(method = "loess", se = FALSE, aes(colour="Loess"))+
-  scale_color_manual(values = cb_palette)+labs(title = "Life Expectancy vs GDP - 2018",x = "GDP/Capita",y = "Life Expectancy", caption="Figure 1")+
+  scale_color_manual(values = cb_palette)+labs(title = "Life Expectancy vs log of GDP - 2018",x = "LOg of GDP/Capita",y = "Life Expectancy", caption="Figure 1")+
   scale_colour_manual(name="Models", values=c("blue", "green")) +
   theme(plot.caption = element_text(hjust = 0.5))
 ```
 
-In Figure 1 we look at Life Expectancy vs GDP per capital for the year 2018 for all the countries. We try to fit a **Linear Model** and **Loess Model** on this data. We can see that the data can be better explained using a loess model as life expectancy plateaus with increase in GDP beyond GDP > 20000. A linear model does not fit well to this data as can be seen from the R-squared value of 0.54. <br>
+In Figure 1 we look at Life Expectancy vs log of GDP per capital for the year 2018 for all the countries. We try to fit a **Linear Model** and **Loess Model** on this data. We can see that if we take the log of value for GDP in 2019 and plot Life Expectancy against it, both linear model and loess model explain the data well. This can be seen from the fact that the R-squared value for the linear model is ~0.74. <br>
 
 ```{r message=FALSE, warning=FALSE, echo=FALSE}
 kable(exp_gdp_cont_agg_2018, caption = "Table 1 - Continent statistics for year 2018") %>% kable_styling(bootstrap_options = c("striped", "hover"), full_width = F)
@@ -135,7 +137,7 @@ From Figure 1 we can see that for the year 2018 the relationship between GDP and
   
   4. We can see the highest mean values of life expectancy and GDP in the case of Europe and the value for correlation is also the highest for this continent indicating a strong relationship <br>
   
-The slope for the linear regression line between life expectancy and GDP is the highest for Africa indicating that Life Expectancy increase the most with increase in GDP in this continent. The pattern can be described using linear model for all the continents. <br>
+The slope for the linear regression line between life expectancy and GDP is the highest for Africa indicating that Life Expectancy increase the most with increase in GDP in this continent. The pattern can be described using linear model for all the continents. This is followed by Asia where we can see countries with very high GDP and Life Expectancy and also onces with very low values.<br>
 
 
 ```{r message=FALSE, warning=FALSE, echo=FALSE, fig.align='center'}
@@ -143,8 +145,10 @@ The slope for the linear regression line between life expectancy and GDP is the 
 ggplot(Exp_GDP_Cont_2018, aes(x = X2018_gdp, y = X2018_exp,color = continent))+ 
   
   geom_point(alpha = 0.3)+scale_color_manual(values = cb_palette)+
-  geom_smooth(method = "lm", se = FALSE)+ facet_grid(rows = vars(continent))+
-  theme(legend.position = "none") + labs(title ="Life Expectancy  vs GDP (Linear Model) - 2018" ,x ="GDP/Capita" ,y = "Life Expectancy", caption="Figure 2") +
+  geom_smooth(method = "lm", se = FALSE)+ 
+  #facet_grid(rows = vars(continent))+
+  #theme(legend.position = "none") +
+  labs(title ="Life Expectancy  vs GDP (Linear Model) - 2018" ,x ="GDP/Capita" ,y = "Life Expectancy", caption="Figure 2") +
   theme(axis.text.x = element_text(angle = 45), plot.caption = element_text(hjust = 0.5))
 ```
 
@@ -317,7 +321,7 @@ ggplot(Exp_GDP_Cont_2018, aes(x = X2018_gdp, y = X2018_exp,color = continent))+
 ggplot(consolidatedDf,aes(y = Expectancy,x = `GDP/Capita`,color = continent))+
   scale_color_manual(values = cb_palette)+
   geom_smooth(method = "lm", se = FALSE)+facet_grid(rows = vars(YearBins))+
-  labs(title ="Linear Model of Avg Life Expectancy vs GDP over years" ,x ="GDP/Capita" ,y = "Average Life Expectancy", caption="Figure 7")+
+  labs(title ="Linear Model of Avg Life Expectancy vs GDP over years" ,x ="GDP/Capita" ,y = "Average Life Expectancy", caption="Figure 8")+
   theme(axis.text.x = element_text(angle = 45))+
   theme(plot.caption = element_text(hjust = 0.5))
 
