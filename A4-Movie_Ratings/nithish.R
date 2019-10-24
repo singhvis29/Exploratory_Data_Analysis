@@ -90,7 +90,7 @@ predModelGAM = augment(modelGAM) %>%
 ##conditioned on years
 ggplot(selectedVars, aes(x = runtimeMinutes, y = averageRating)) + 
   geom_point(size = 0.05) + 
-  facet_grid(rows = vars(cutYears)) +
+  # facet_grid(rows = vars(cutYears)) +
   geom_smooth(method = "gam", se = FALSE,span = 0.5)
 
 

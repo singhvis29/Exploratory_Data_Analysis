@@ -1,0 +1,354 @@
+---
+title: "Mini Project"
+author: "Srinithish Kandagadla and Vishal Singh"
+date: "October 3, 2019"
+output:
+  html_document: default
+  pdf_document: default
+editor_options: 
+  chunk_output_type: inline
+  fig_width: 6 
+  fig_height: 4
+---
+
+```{r setup, include=FALSE, echo=FALSE}
+knitr::opts_chunk$set(echo = TRUE, tidy = TRUE)
+library(tidyverse)
+library(dplyr)
+library(gapminder)
+library(tidyverse)
+library(lme4)
+library(knitr)
+library(kableExtra)
+cb_palette <- c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+```
+
+
+### Abstract
+
+In this project we study the change  in two of the main indicators of development level of a country i.e. Life Expectancy and Gross Domestic Product (GDP) per capital for years after the Second World War. The two metrics are defined as follows-<br>
+1. **Life Expectancy** - It refers to the number of years a person is expected to live. Life expectancy is based on an estimate of the average age that members of a particular population group will be when they die. <br>
+2. **Gross Domestic Product** - It is the total monetary or market value of all the finished goods and services produced within a country's borders in a specific time period. **GDP per capita** is a measure of a country's economic output that accounts for its number of people. <br>
+We measure these metrics across years and each other to see the trend and how they effect each other. Further, we study their effects across various continent to measure how have the different countries in the continents have performed and the overall performance of the continents. This helps us measure if some parts of the world are performing better than the others and if all the countries have performed similarly in a continent or if some countries are better than others. <br>
+In general, we find that both the GDP per capita and Life Expectancy has increased after World War 2, this highlights a high correlation between the two metrics. We zoom in on all the continents and countries to provide a more granular view on these metrics. <br>
+
+### Data
+
+We obtain the data from the gapminder website, we download the tables which have the longitudinal data for the metrics - Life Expectancy, Gross Domestic Product per capita, and Population. <br>
+The table for Life Expectancy contains data for different countries for years 1800-2018. The value for each year appears as a seperate column. We used the data for post WW2 years for our project, this mean only years after 1945 were used. <br>
+The table for GDP/per capita contains data for different countries for years 1800-2040. The years 1945-2018 are filtered for our analysis. This table also contains data for different years as different columns. This table contains inflation-adjusted value and can therefore be compared with each other directly.<br>
+The table for population contains country population for years 1800-2100 in different columns. We filter for years 1945-2100
+We also use the country-continent mapping form the gapminder data in the gapminder library. This table is joined with the various tables to aggregate the information at the continent level
+
+### Problem Statement
+
+We broadly look at 3 problem statements to measure the metrics in question and explain the change w.r.t. time and each other <br>
+1. How were the GDP and Life Expectancy related for the year 2018 ? <br>
+2. How did the Average Life Expectancy change w.r.t. to time for different continents ? <br>
+3. How has the relationship between GDP per capita and Life Expectancy changed over years? <br>
+We further drill down on these problem statements to look at the metrics at a more granular level for different countries. <br>
+
+## Question 1
+
+```{r message=FALSE, warning=FALSE, echo=FALSE}
+gapminderDf = gapminder
+
+##load data
+
+lifeExpectancyDf  = read.csv('life_expectancy_years.csv')
+gdpPerCapitaDf = read.csv('income_per_person_gdppercapita_ppp_inflation_adjusted.csv' )
+populationTotalDf = read.csv("population_total.csv")
+
+
+
+## getinng continent mapping from gapminder df
+
+
+countryContinentMapping = gapminderDf %>% 
+  select(country,continent) %>% 
+  distinct(country,continent,.keep_all = TRUE)
+
+
+expectancy_gdp = lifeExpectancyDf %>% 
+  inner_join(gdpPerCapitaDf,by = c("country" = "country"),suffix =  c("_exp", "_gdp"))
+
+
+
+
+##joining continent information
+expectancy_gdp_cont = expectancy_gdp %>% 
+  inner_join(countryContinentMapping,by = c("country" = "country"))
+
+
+
+expectancy_gdp_cont = expectancy_gdp_cont %>% 
+  select(country,continent,everything())
+
+
+
+Exp_GDP_Cont_2018 = expectancy_gdp_cont %>% 
+  select(country,continent,X2018_exp,X2018_gdp)
+
+Exp_GDP_Cont_2018$X2018_gdp_log = log10(Exp_GDP_Cont_2018$X2018_gdp)
+
+lm2018 = lm(data = Exp_GDP_Cont_2018, X2018_exp ~ X2018_gdp_log)
+lm2018_loess = loess(data = Exp_GDP_Cont_2018, X2018_exp ~ X2018_gdp_log)
+
+exp_gdp_cont_agg_2018 = Exp_GDP_Cont_2018  %>%
+  group_by(continent) %>%
+  summarise(meanExpect_2018 = mean(X2018_exp,na.rm=TRUE),
+            meanGDP_2018 = mean(X2018_gdp,na.rm=TRUE),
+            varexp_2018 = var(X2018_exp, na.rm = TRUE),
+            varGDP_2018 = var(X2018_gdp, na.rm = TRUE),
+            cor_exp_gdp_2018 = cor(X2018_gdp, X2018_exp, use = "complete.obs"))
+
+names(exp_gdp_cont_agg_2018) = c("Continent", "Avg Life Expectancy", "Avg GDP", "Life Expectancy Variance", "GDP variance", "Correlation (LE and GDP)")
+
+```
+
+```{r message=FALSE, warning=FALSE, echo=FALSE, fig.width=6, fig.height=3, fig.align='center'}
+ggplot(Exp_GDP_Cont_2018, aes(x = X2018_gdp_log, y = X2018_exp))+ 
+  geom_point(alpha = 0.8)+
+  geom_smooth(method = "lm", se = FALSE, aes(colour="Linear"))+
+  geom_smooth(method = "loess", se = FALSE, aes(colour="Loess"))+
+  scale_color_manual(values = cb_palette)+labs(title = "Life Expectancy vs log of GDP - 2018",x = "LOg of GDP/Capita",y = "Life Expectancy", caption="Figure 1")+
+  scale_colour_manual(name="Models", values=c("blue", "green")) +
+  theme(plot.caption = element_text(hjust = 0.5))
+```
+
+In Figure 1 we look at Life Expectancy vs log of GDP per capital for the year 2018 for all the countries. We try to fit a **Linear Model** and **Loess Model** on this data. We can see that if we take the log of value for GDP in 2019 and plot Life Expectancy against it, both linear model and loess model explain the data well. This can be seen from the fact that the R-squared value for the linear model is ~0.74. <br>
+
+```{r message=FALSE, warning=FALSE, echo=FALSE}
+kable(exp_gdp_cont_agg_2018, caption = "Table 1 - Continent statistics for year 2018") %>% kable_styling(bootstrap_options = c("striped", "hover"), full_width = F)
+```
+
+
+  **Overall Average Life Expectancy - 72.63** <br>
+  
+  **Overall Average GDP - 13307.63** <br>
+
+From Figure 1 we can see that for the year 2018 the relationship between GDP and life expectancy can be explained using a linear regression line for all the continents. From Table 1 we can also observe good correlation (> 0.50) between the two variables for all the continents. We observe the following pattern for the different continents- <br>
+
+  1. In Africa we can see GDP < 15000 and life expectancy < 75 for most of the countries. The mean Life Expectancy and GDP is lowest amongst all the continents, these metrics are also lower than the overall averages. Only a few countries are above the overall average for GDP - Botswana, Gabon, Libya and Mauritius; and only 3 countries - Algeria, Egypt and Mauritius are above in term of average Life Expectancy than overall average. From table 1, we can observe least variance in the GDP for countries in Africa continent. The slope for Africa is the highest which means that effect of increase in Life Expectancy is the highest with increase in GDP. <br>
+  
+  2. For America, we can see a couple of outliers - US, Canada for GDP which have values for GDP > 40k. The mean life expectancy if well above overall average, the GDP per capita is close to the world average. We see can a lot of countries in the range of 78-80+ for this continent which states that countries not just US and Canada, but others as well have a good status of health, this is also supported by the fact that variance for Life Expectancy is quite low. We can see a strong correlation (0.50) between the variable for this continent as well. <br>
+  
+  3. We can see a lot of countries with a very high GDP in Asia, these values might have been reported wrongly as they don't match with the data online. We can see a very high value of correlation between life expectancy and GDP for Asia (0.75), this can be evident from cases like Japan where life expectancy and GDP both are high and Afghanistan where both the metrics are low. <br>
+  
+  4. We can see the highest mean values of life expectancy and GDP in the case of Europe and the value for correlation is also the highest for this continent indicating a strong relationship <br>
+  
+The slope for the linear regression line between life expectancy and GDP is the highest for Africa indicating that Life Expectancy increase the most with increase in GDP in this continent. The pattern can be described using linear model for all the continents. This is followed by Asia where we can see countries with very high GDP and Life Expectancy and also onces with very low values.<br>
+
+
+```{r message=FALSE, warning=FALSE, echo=FALSE, fig.align='center'}
+### linear
+ggplot(Exp_GDP_Cont_2018, aes(x = X2018_gdp, y = X2018_exp,color = continent))+ 
+  
+  geom_point(alpha = 0.3)+scale_color_manual(values = cb_palette)+
+  geom_smooth(method = "lm", se = FALSE)+ 
+  #facet_grid(rows = vars(continent))+
+  #theme(legend.position = "none") +
+  labs(title ="Life Expectancy  vs GDP (Linear Model) - 2018" ,x ="GDP/Capita" ,y = "Life Expectancy", caption="Figure 2") +
+  theme(axis.text.x = element_text(angle = 45), plot.caption = element_text(hjust = 0.5))
+```
+
+## Question 2
+
+```{r message=FALSE, warning=FALSE, echo=FALSE}
+
+expectancyLong = lifeExpectancyDf %>% 
+  gather(key = "Year",value = "Expectancy",'X1800':"X2018") %>% 
+  mutate(Year = str_replace(Year,'X','')) %>% 
+  mutate(Year = as.integer(Year)) %>% inner_join(countryContinentMapping,by = c("country" = "country")) %>% 
+  select(country,continent,everything())
+
+
+populationTotalLong = populationTotalDf %>% 
+  gather(key = "Year",value = "Population",'X1800':"X2100") %>% 
+  mutate(Year = str_replace(Year,'X','')) %>% 
+  mutate(Year = as.integer(Year)) %>% inner_join(countryContinentMapping,by = c("country" = "country")) %>% 
+  select(country,continent,everything())
+
+
+consolidatedExpec = expectancyLong %>% inner_join(populationTotalLong)
+
+
+avgLifeExp_Long_postWW = consolidatedExpec %>% select(-country) %>%
+                group_by(continent,Year) %>% mutate(weightedAvg =   weighted.mean(Expectancy,Population)) %>% 
+  distinct(continent,Year,weightedAvg) %>% 
+  filter(Year>=1945) %>% rename(weightedExpectancy = weightedAvg)
+
+avgLifeExp_Long_postWW_withCuts = avgLifeExp_Long_postWW %>% 
+  as.data.frame(.) %>% 
+  mutate(YearsBinned = cut(Year,5,dig.lab = 4))
+
+```
+
+2.	We can see from the Figure 3 that a linear model explains very well the increase in life expectancy for years after the second world war in 1945. This has been the case for all the continents, and we can see that all the continents have caught up in term of life expectancy except for Africa which has a slightly lower average life expectancy in the year 2018 (highest). We can see a great improvement in the average life expectancy in case of Asia (35 to 73) and Africa (35 to 66)<br>
+ We can observe a slight dip for Europe in years after the war, this could be because Europe was at the center of the war and could have suffered from the aftermath of the war. We can also see a slight upwards bump in case of Asia in the 1960s, this could be due to improvement of economy in the middle east due to the rise in exports of oil. There is a downwards bump for Asia prior to this period, this could be due to incorrect data as the magnitude of the bump is big. A liner model is enough to explain the increase in the life expectancy over the years. Overall we can say that the world is doing better than what it was in 1945 in terms of life expectancy . As evident from the table, we can see there is a lot of variation in the case of Asia for both life expectancy and GDP this is due to countries having extreme values for GDP like Afghanistan and the middle eastern countries, from the plot we can see the maximum amount of deviation from the standard regression line in case of Asia.
+
+```{r message=FALSE, warning=FALSE, echo=FALSE, fig.align='center'}
+ggplot(avgLifeExp_Long_postWW,aes(x = Year,y = weightedExpectancy,color = continent))+geom_point(alpha = 0.3)+scale_color_manual(values = cb_palette)+
+  geom_line() +
+  # geom_smooth(method = "lm", se = FALSE)+ 
+  facet_grid(rows = vars(continent))+
+  theme(legend.position = "none")+
+  labs(title = "Average Life Expectancy (1945 - 2018)",x = "Years",y = "Average Life Expectancy", caption="Figure 3")+
+  theme(plot.caption = element_text(hjust = 0.5))
+
+```
+
+Since, the continents have more or less caught up in term of life expectancy we look at the data for recent years to check if its due to all the countires in the continent. In Figure 4, we have plotted the boxplots for different continents for data after year 2014, we see that that the interquartile range is the highest for Asia and Africa and lowest for Americas and Europe, this shows that the disparity is highest in continents of Asia and Africa and lowest in America and Europe. In the case of Asia, the life expectancy of some countries is among the highest e.g.- Japan, Singapore and lowest e.g.- Afghanistan
+
+
+```{r message=FALSE, warning=FALSE, echo=FALSE, fig.width=6, fig.height=2.5, fig.align='center'}
+### Filtering for year 2018
+expectancyLong_2018 = expectancyLong %>% filter(`Year`>= 2014)
+
+### Boxplot for Weighted Life Expectancy
+ggplot(expectancyLong_2018, aes(x = continent, y = Expectancy)) + geom_boxplot() +
+  labs(title = "Boxplot- Average Life Expectancy (2014 onwards)",x = "Continent",y = "Average Life Expectancy", caption="Figure 4")+
+  theme(plot.caption = element_text(hjust = 0.5))
+```
+
+Next in Figure 5, we look at breakdown of slopes over different periods after WW2 for different continents
+
+  * In case of Africa, we can see the greatest slope in the period of 2003-2018, which means the life expectancy increased the most in this period
+  * For America, slope for the Avg Life Expectancy vs Time graph has decreased over time, this means that the improvement in life expectancy is approaching stagnation
+  * We saw the greatest increase in life expectancy for the case of Asia in the period of 1960 -1974, it has continued to show a high positive slope ever since
+  * We see an increase in life expectancy over years for Europe as well
+  *The number of data points for Ocenia are few but we can see a positive slope for all time periods
+
+```{r message=FALSE, warning=FALSE, echo=FALSE, fig.align='center'}
+
+#### most populus state
+mostPopulousDf = consolidatedExpec %>% 
+  group_by(continent,country) %>% 
+  summarise(PopulationMean = mean(Population)) %>%
+  top_n(n=3,wt=PopulationMean)
+
+
+mostPopulousConuntryExpectencyDf = consolidatedExpec %>% 
+  filter(Year >= 1945,country %in% mostPopulousDf$country,continent %in% c('Asia','Africa','Americas'))
+
+
+ggplot(mostPopulousConuntryExpectencyDf,aes(x = Year,y = Expectancy,color = country))+geom_point(alpha = 0.3)+
+  # scale_color_manual(values = cb_palette)+
+  geom_line()+
+  facet_grid(rows = vars(continent))+
+ labs(title ="Life Expectancy vs Years" ,x ="Year" ,y = "Average Life Expectancy", caption="Figure 5")+
+  theme(axis.text.x = element_text(angle = 45))+
+  theme(plot.caption = element_text(hjust = 0.5))
+
+
+```
+
+
+## Question 3
+
+In Figure 6, we look at  Weighted Average Life Expectancy vs Weighted Average GDP per capita across different continents for different years. The weighted average GDP per capita is less for Asia as the countries with largest populations (India, China) have low GDP. We can deduce the following for different continents from the figure- <br>
+
+  * In case of Africa, increase of Average GDP over the years has resulted in increase in average Life Expectancy, there has been a stark increase in the avg life expectancy over the years <br>
+  
+  * For America, there has been a steady improvement in Life Expectancy with increase in GDP over the years <br>
+  
+  * For Asia, there is a sharp increase average life expectancy with increase in GDP in years until 1980 after that the increase in life expectancy has slowed with increase in average GDP <br>
+  
+  * In case of Europe there has been a steady increase in Life Expectancy with increase in GDP over the years until the life expectancy has reached ~80 years <br>
+  
+  * There has been a slow increase in average life expectancy for Oceania in years prior to 1970 with increase in GDP, the rate increased during years between 1970 - 1990 but has slowed since then <br>
+  
+Overall we can say that prior to 1980s, both average GDP and average Life Expectancy increased rapidly for most countries, which meant that GDP was Life Expectancy a lot during years. The increase in Life Expectancy has slowed since then with more and more countries reaching a life expectancy of 80 <br>
+
+```{r message=FALSE, warning=FALSE, echo=FALSE}
+expectancyLong = lifeExpectancyDf %>% 
+  gather(key = "Year",value = "Expectancy",'X1800':"X2018") %>% 
+  mutate(Year = str_replace(Year,'X','')) %>% 
+  mutate(Year = as.integer(Year)) %>% inner_join(countryContinentMapping,by = c("country" = "country")) %>% 
+  select(country,continent,everything())
+  
+gdpLong = gdpPerCapitaDf %>% 
+  gather(key = "Year",value = "GDP/Capita",'X1800':"X2040") %>% 
+  mutate(Year = str_replace(Year,'X','')) %>% 
+  mutate(Year = as.integer(Year)) %>% inner_join(countryContinentMapping,by = c("country" = "country")) %>% 
+  select(country,continent,everything())
+
+
+consolidatedDf = expectancyLong %>% 
+              inner_join(gdpLong) %>% filter(Year>1945,`GDP/Capita` > 0) %>% 
+              mutate(YearBins = cut(Year,6,dig.lab = 4))
+
+consolidatedDf = consolidatedDf %>% inner_join(populationTotalLong)
+
+consolidatedDf = consolidatedDf %>% select(-Year) %>%    group_by(country,continent,YearBins) %>% 
+  summarise_all(mean)
+
+consolidatedDf = consolidatedDf %>% drop_na()
+
+consolidatedDf2 = expectancyLong %>% inner_join(gdpLong) %>% filter(Year>1945,`GDP/Capita` > 0)
+
+consolidatedDf2 = consolidatedDf2 %>% inner_join(populationTotalLong)
+
+consolidatedDf2 = consolidatedDf2 %>%
+  group_by(continent, Year) %>%
+  mutate(weightedAvgLE =   weighted.mean(Expectancy,Population)) %>% 
+  mutate(weightedAvgGDP =   weighted.mean(`GDP/Capita`,Population))
+
+
+
+```
+
+```{r message=FALSE, warning=FALSE, echo=FALSE, fig.align='center'}
+ggplot(consolidatedDf2, aes(y = weightedAvgLE, x = weightedAvgGDP, color = Year)) +
+  geom_point() +
+  scale_color_manual(values = cb_palette) +
+  facet_grid(rows = vars(continent)) +
+  scale_color_gradient(low='Red', high='Blue') +
+  labs(title ="Average Life Expectancy vs GDP over time" ,x ="GDP per capita" ,y = "Average Life Expectancy", caption="Figure 6") +
+  theme(axis.text.x = element_text(angle = 45))+
+  theme(plot.caption = element_text(hjust = 0.5))
+  
+```
+
+
+
+
+
+### References
+
+ * https://ourworldindata.org/life-expectancy-how-is-it-calculated-and-how-should-it-be-interpreted
+ * https://www.investopedia.com/terms/g/gdp.asp
+ * https://rmarkdown.rstudio.com/authoring_basics.html
+ * https://www.gapminder.org/data/
+ * https://rmarkdown.rstudio.com/lesson-7.html
+
+## Appendix
+
+
+```{r message=FALSE, warning=FALSE, echo=FALSE, fig.width=6, fig.height=4, fig.align='center'}
+### loess
+ggplot(Exp_GDP_Cont_2018, aes(x = X2018_gdp, y = X2018_exp,color = continent))+ 
+  geom_point(alpha = 0.3)+scale_color_manual(values = cb_palette)+
+  geom_smooth(method = "loess", span = 0.5,se = FALSE)+ facet_grid(rows = vars(continent))+
+  theme(legend.position = "none") + labs(title ="Life Expectancy  vs GDP (Loess Model) - 2018" ,x ="GDP/Capita" ,y = "Life Expectancy", caption="Figure 7") + theme(axis.text.x = element_text(angle = 45), plot.caption = element_text(hjust = 0.5))
+
+```
+
+```{r message=FALSE, warning=FALSE, echo=FALSE, fig.align='center', fig.width=6, fig.height=4, fig.align='center'}
+ggplot(consolidatedDf,aes(y = Expectancy,x = `GDP/Capita`,color = continent))+
+  scale_color_manual(values = cb_palette)+
+  geom_smooth(method = "lm", se = FALSE)+facet_grid(rows = vars(YearBins))+
+  labs(title ="Linear Model of Avg Life Expectancy vs GDP over years" ,x ="GDP/Capita" ,y = "Average Life Expectancy", caption="Figure 8")+
+  theme(axis.text.x = element_text(angle = 45))+
+  theme(plot.caption = element_text(hjust = 0.5))
+
+```
+```{r}
+ggplot(avgLifeExp_Long_postWW_withCuts,aes(x = Year,y = weightedExpectancy,color = continent))+geom_point(alpha = 0.3)+scale_color_manual(values = cb_palette)+
+  geom_smooth(method = "lm", se = FALSE)+ 
+  facet_grid(rows = vars(continent),cols = vars(YearsBinned))+
+  theme(legend.position = "none")+labs(title ="Linear Model of Avg Life Expectancy vs GDP over years" ,x ="Year" ,y = "Average Life Expectancy", caption="Figure 5")+
+  theme(axis.text.x = element_text(angle = 45))+
+  theme(plot.caption = element_text(hjust = 0.5))
+```
+
