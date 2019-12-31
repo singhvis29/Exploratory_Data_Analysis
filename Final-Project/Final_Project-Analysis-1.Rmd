@@ -1,0 +1,177 @@
+---
+title: "EDA_Main_Project"
+author: "Siddartha Rao, Shreya Paul and Vishal Singh"
+date: "December 14, 2019"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE, echo=FALSE}
+knitr::opts_chunk$set(echo = TRUE, tidy = TRUE)
+library(tidyverse)
+library(dplyr)
+library(gapminder)
+library(tidyverse)
+library(lme4)
+library(knitr)
+library(kableExtra)
+library(arm)
+#library(ggpubr)
+library(viridis)
+library(mgcv)
+library(broom)
+library(RColorBrewer)
+cb_palette <- c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+palette(brewer.pal(n = 8, name = "Spectral"))
+```
+
+```{r include=FALSE, echo=FALSE}
+# Loading Data
+spotify.df = read.csv("spotify.dataset.final.csv")
+print(paste("Unique Genres:", unique(spotify.df$genre)))
+print(paste("Column Names (Features):", colnames(spotify.df)))
+```
+
+### Analysis
+
+We began by looking at a few of the basic graphs for our data to get a better sense of our dependent variable 'Popularity' since its is a very subjective term. We look at the most popular and least popular songs from out dataset.
+
+#### Most Popular Songs
+
+```{r}
+spotify.df.filtered.popularity = spotify.df %>% filter(popularity <= 100) %>% filter(track_name != 'In My Feelings')
+top_n(spotify.df.filtered.popularity, n = 10, spotify.df.filtered.popularity$popularity) %>% ggplot(., aes(x = track_name, y = popularity)) + geom_bar(stat = "identity", fill = "blue") + coord_flip() + labs(x = "Track Name", y = "Popularity", title = "Most popular songs")
+```
+
+#### Least Popular Songs
+
+```{r}
+top_n(spotify.df.filtered.popularity, n = -10, spotify.df.filtered.popularity$popularity) %>% ggplot(., aes(x = track_name, y = popularity)) + geom_bar(stat = "identity", fill = "red") + coord_flip()  + labs(x = "Track Name", y = "Popularity", title = "Least popular songs")
+```
+
+#### Probability Distribution
+
+```{r}
+library(plyr)
+mu <- ddply(spotify.df, "genre", summarise, grp.mean=mean(popularity))
+
+a = ggplot(spotify.df, aes(x = popularity, color = genre))
+
+a + geom_density(size = 1) + labs(x = "Popularity", y = "Density", title="Density of Popularity for different Genres") + scale_color_brewer(palette = "Spectral") + geom_vline(data=mu, aes(xintercept=grp.mean, color=genre), linetype="dashed", size = 1)
+```
+
+#### Mean Popularity by Genre
+
+```{r}
+a = spotify.df %>% group_by(genre) %>% dplyr::summarise(cnt = n()) %>% 
+  ggplot(aes(x = genre, y = cnt, color = genre)) 
+a + geom_bar(stat = "identity", fill = "white", size = 1) + scale_color_brewer(palette = "Spectral") + labs(x = "Genres", y = "Song Count", title="Number of songs for different Genre")#+
+```
+
+#### Boxplot of popularity by Genre
+
+```{r}
+ggplot(data = spotify.df, aes(x = genre, y = popularity, color = genre)) + geom_boxplot(size=1) + scale_color_brewer(palette = "Spectral") + labs(x = "Genres", y = "Popularity", title="Distribution of Popularity for different Genre")
+```
+
+
+
+```{r}
+#Removing variables track name and ones which have been convertd to categorical
+spotify.model.df = spotify.df %>% dplyr::select(-duration_ms, -loudness, -speechiness, -liveness, -tempo, -track_name)
+```
+
+#### Popularity by Valence for different Genres
+
+```{r}
+ggplot(aes(x = valence, y = popularity, color = genre), data = spotify.model.df) + geom_smooth(method = "lm", se = FALSE) + labs(x = "Valence", y = "Popularity", title="Popularity by Valence for different Genres")
+```
+
+#### Popularity by Acousticness for different Genres
+
+```{r}
+ggplot(aes(x = acousticness, y = popularity, color = genre), data = spotify.model.df) + geom_smooth(method = "lm", se = FALSE) + labs(x = "Acousticness", y = "Popularity", title="Popularity by Acousticness for different Genres")
+```
+#### Popularity by Speechiness for different Genres
+
+```{r}
+ggplot(aes(x = speechiness, y = popularity, color = genre), data = spotify.df) + geom_smooth(method = "lm", se = FALSE) + labs(x = "Speechiness", y = "Popularity", title="Popularity by Speechiness for different Genres")
+```
+
+### Linear model
+
+$Prediction = lm(duration*(loudness + liveness + Tempo + Dancibility) + Valence + Genre + Acousticness + Dancibilty + mode + speechiness)$
+
+```{r}
+spotify.lm = lm(popularity~duration_s*(loudness.level+liveness.level+tempo.level+danceability)+valence+genre+acousticness+danceability+mode+speechiness.level,data =spotify.model.df )
+summary(spotify.lm)
+```
+
+```{r}
+### Predicted values
+spotify.model.df$predictions = predict(spotify.lm, spotify.model.df[,-spotify.model.df$popularity])
+
+spotify.lm.df = augment(spotify.lm)
+
+ggplot(spotify.lm.df, aes(x = duration_s, y = .resid)) + geom_point(size = 0.1) + geom_smooth(method = "lm", se = FALSE) + labs(x = "Duration (in secs)", y = "Residual", title="Residual of linear model")
+
+#residual is evenly distributed indicating linear model is a good fit for this data
+```
+
+```{r}
+ggplot(data = spotify.model.df, aes(x = duration_s, y = popularity)) + geom_point(size=0.1) + geom_point(size = 0.1) + geom_smooth(method = "lm", color = "green") + facet_wrap(~ genre, nrow = 1) + labs(x = "Duration (in secs)", y = "Actual Popularity", title="Actual Popularity by Duration for different Genres") + ylim(0,100)
+#print(p)
+```
+
+```{r}
+ggplot(data = spotify.model.df, aes(x = duration_s, y = predictions)) + geom_point(size=0.1) + geom_point(size = 0.1) + geom_smooth(method = "lm", color = "red") + facet_wrap(~ genre, nrow = 1) + labs(x = "Duration (in secs)", y = "Predicted Popularity", title="Predicted Popularity by Duration for different Genres") + ylim(0,100)
+```
+
+```{r}
+ggplot(spotify.model.df, aes(tempo.level, genre, legend = "Popularity")) + geom_tile(aes(fill = popularity)) + labs(x = "Tempo", y = "Genre", title="Actual Popularity for different combination of Tempo and Genre", fill = "Actual Popularity")
+```
+
+```{r}
+ggplot(spotify.model.df, aes(tempo.level, genre)) + geom_tile(aes(fill = predictions)) + labs(x = "Tempo", y = "Genre", title="Predicted Popularity for different combination of Tempo and Genre", fill = "Predicted Popularity")
+```
+
+```{r}
+ggplot(spotify.model.df, aes(speechiness.level, loudness.level)) + geom_tile(aes(fill = popularity))
+```
+
+#### Making predictions for songs
+```{r}
+spotify.df.prediction = spotify.model.df[, ! colnames(spotify.model.df) %in% c("predictions")]
+spotify.df.prediction = spotify.df %>% dplyr::select(c(colnames(spotify.df.prediction),"track_name"))
+#spotify.df.prediction = spotify.df.prediction[,-spotify.df.prediction$popularity]
+spotify.df.prediction$predictions = predict(spotify.lm,  newdata = spotify.df.prediction[,! colnames(spotify.df.prediction) %in% c("predictions","track_name")])
+
+# Creating songs popularity and predictions dataframe
+song.df  = spotify.df.prediction[,c("track_name","popularity","predictions")]
+
+write.csv(song.df, "song.predictions.data.csv")
+```
+
+
+
+
+### Appendix
+
+## PCA
+
+
+```{r}
+spotify.model.pca.df = spotify.model.df %>% dplyr::select(acousticness, danceability, valence, duration_s)
+
+pca = prcomp(spotify.model.pca.df, scale. = TRUE)
+pca.df = as.data.frame(pca$x)
+
+pca.df = cbind(pca.df, spotify.df$genre)
+```
+
+```{r}
+ggplot(data = pca.df, aes(x = PC1, y = PC2, color=`spotify.df$genre`)) + geom_point() + labs(x = "Principal Component 1", y = "Principal Component 2", title = "Scatterplot of Top 2 Principal Components by Genre")
+```
+
+

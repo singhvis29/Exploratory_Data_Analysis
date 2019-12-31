@@ -1,0 +1,81 @@
+---
+title: "A6_singhvis"
+author: "Vishal Singh"
+date: "November 30, 2019"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+
+```{r setup, include=FALSE, echo=FALSE}
+knitr::opts_chunk$set(echo = TRUE, tidy = TRUE)
+library(tidyverse)
+library(dplyr)
+library(tidyverse)
+library(lme4)
+library(knitr)
+library(kableExtra)
+library(maps)
+library(openintro)
+library(ggthemes)
+cb_palette <- c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+```
+
+```{r}
+# Reading Data
+countyData = read.csv("county_data.txt",sep = ' ') 
+
+# Selecting required columns
+countyData = countyData %>% dplyr::select(name, state, diff_2016, partywinner16, flipped) %>% mutate(state = abbr2state(state))
+
+countyData %>% head() %>% drop_na()
+```
+
+```{r}
+# Loading county data
+us_county = map_data("county")
+```
+
+```{r}
+# Cleaning the election data
+election.df = countyData %>% 
+  filter(!state %in% c("Alaska","Hawaii")) %>% 
+  mutate(county = str_to_lower(name), state = str_to_lower(state)) %>%
+  mutate(county = str_replace_all(county," county| parish|\\.| borough|'| ",'')) %>% 
+  drop_na()
+
+us_county = us_county %>% mutate(subregion = str_replace_all(subregion, " ", ""))
+election.county.df = election.df %>% inner_join(us_county, by = c('county'='subregion','state' = 'region'))
+  
+```
+
+### Winning Party by County
+When we look at winning parties by counties in the 2016 US Presidential Elections, we see that counties who had democratic winner were mostly concentrated around areas of West Coast, North Eastern states and a few in the states of New Mexico, Colorado and South Texas.
+
+```{r}
+# Plotting Election winner by County
+ggplot(election.county.df, aes(long, lat, group = group, fill = partywinner16)) + geom_polygon(color = "gray90", size = 0.25) + theme_map() + coord_map(projection = "lambert", lat0 = 30, lat1 = 40) + scale_fill_manual(name = "Party", values = c("dodgerblue3", "indianred3")) + labs(title = "Winning party by County in 2016 US Presidential Election")
+```
+
+### Difference in Winning Margin for different counties
+When we look at the variable of `Difference in Winning Margin`, we see counties with highest difference in states of California, Oregon for 'Blue States' and Florida, Ohio for 'Red States'.
+
+```{r}
+# Plotting difference margin
+election.county.df$diff = election.county.df$diff_2016
+election.county.df$diff[election.county.df$diff >  10000] = 10000
+ggplot(election.county.df, aes(long, lat, group = group, fill = diff)) + geom_polygon(color = "gray90", size = 0.25) + theme_map() + coord_map(projection = "lambert", lat0 = 30, lat1 = 40) + scale_fill_gradient2(name = "Difference of Votes", low = "red", high = "blue")
+```
+
+### Counties who "Flipped"
+When we look at counties who changed who they voted for from 2012 to 2016, we see most of them concentrated in the North Eastern States and a few in the states of Iowa and Minnesota.
+
+```{r}
+# Counties who flipped their party from 2012 to 2016
+ggplot(election.county.df, aes(long, lat, group = group, fill = flipped)) + geom_polygon(color = "gray90", size = 0.25) + theme_map() + coord_map(projection = "lambert", lat0 = 30, lat1 = 40) + scale_fill_manual(name = "Flipped", values = c("#999999", "#56B4E9")) + labs(title = "Highlighting Counties who flipped")
+```
+
+
+
+

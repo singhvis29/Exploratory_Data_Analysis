@@ -1,0 +1,137 @@
+---
+title: "A5_singhvis"
+author: "Vishal Singh"
+date: "October 29, 2019"
+output: html_document
+---
+
+
+```{r setup, include=FALSE, echo=FALSE}
+knitr::opts_chunk$set(echo = TRUE, tidy = TRUE)
+library(tidyverse)
+library(dplyr)
+library(gapminder)
+library(tidyverse)
+library(lme4)
+library(knitr)
+library(kableExtra)
+library(NHANES)
+library(arm)
+cb_palette <- c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+```
+
+
+```{r}
+nhanes_raw = NHANESraw
+nhanes_raw = nhanes_raw  %>% dplyr::select(Diabetes, Age, WTINT2YR) %>% 
+  drop_na(Diabetes) %>% 
+  mutate(Diabetes = ifelse(Diabetes == "No",0,1))
+
+nhanes = NHANES %>% dplyr::select(Diabetes,Age) %>% 
+  drop_na(Diabetes) %>% 
+  mutate(Diabetes = ifelse(Diabetes == "No",0,1))
+
+```
+
+## 1
+### a.
+
+```{r}
+prop_diabetes_nhanes = nhanes %>% group_by(Diabetes) %>% summarise(percent = n()) %>% 
+  mutate(percent=percent/sum(percent))
+
+prop_diabetes1a = prop_diabetes_nhanes$percent[prop_diabetes_nhanes$Diabetes == 1]
+print(paste0('Proportion of all U.S. residents with diabetes: ', round(prop_diabetes1a,5)))
+```
+
+### b.
+
+```{r}
+prop_diabetes_nhanesraw = nhanes_raw %>% group_by(Diabetes) %>% summarise(percent = n()) %>% 
+  mutate(percent=percent/sum(percent))
+
+prop_diabetes1b = prop_diabetes_nhanesraw$percent[prop_diabetes_nhanesraw$Diabetes == 1]
+print(paste0('Proportion of people in the sample with diabetes: ', round(prop_diabetes1b,5)))
+```
+
+### c.
+
+```{r}
+prop_diabetes_nhanesraw_wt = nhanes_raw %>% group_by(Diabetes) %>% summarise(percent = sum(WTINT2YR)) %>% 
+  mutate(percent = percent/sum(percent))
+
+prop_diabetes1c = prop_diabetes_nhanesraw_wt$percent[prop_diabetes_nhanesraw_wt$Diabetes == 1]
+print(paste0('Proportion of all U.S. residents with diabetes (weighted): ', round(prop_diabetes1c,5)))
+```
+
+The proportion estimated from the data NHANES and NHANESraw (unweighted) is comparable (~8%) and also the proportion estimated from NHANESraw using unweighted and weighted data is also comaparable.
+
+## 2
+### a.
+
+Visualize the model:
+
+```{r}
+ggplot(nhanes, aes(Age, Diabetes)) + geom_jitter(height = 0.01) + geom_smooth(method = "glm", method.args = list(family = "binomial")) + labs(title ="Unweighted Proportion of U.S. Citizens with Diabetes against Age" ,x ="Age" ,y = "Proportion of U.S citizens with diabetes")
+```
+
+Fit a logistic regression:
+
+```{r}
+diabetes.logit = glm(Diabetes ~ Age, family = binomial, data = nhanes)
+summary(diabetes.logit)
+```
+
+**Interpretation** <br>
+The coefficient of regression is 0.05634, therefore, we can say that with a unit increase in the value of Age will result in a increase of 0.05634 in the value of log of odds ratio.
+
+### b.
+
+Fit a logistic regression:
+
+```{r}
+survey.weights=(nhanes_raw$WTINT2YR/1) 
+diabetes.logit.wt = glm(Diabetes ~ Age, family = binomial, data = nhanes_raw, weights = survey.weights)
+summary(diabetes.logit.wt)
+```
+
+```{r}
+#Describing the fit
+our.logit = function(x){
+coe = coef(diabetes.logit.wt)
+y = coe[1] + coe[2] * x
+return(exp(y) / (1 + exp(y)))
+}
+```
+
+Visualize the model:
+
+```{r}
+ggplot(nhanes, aes(Age, Diabetes)) + geom_jitter(height = 0.01) + geom_smooth(method = "glm", method.args = list(family = "binomial")) + stat_function(fun = our.logit, color = "orange") + labs(title ="Weighted and Unweighted Proportion of U.S. Citizens with Diabetes against Age" ,x ="Age" ,y = "Proportion of U.S citizens with diabetes")
+```
+
+**Interpretation** <br>
+The coefficient of regression is 3.192e+13, therefore, we can say that with a unit increase in the value of Age will result in a increase of 3.192e+13 in the value of log of odds ratio. <br>
+The coefficients of the two models are very different and the scale of coefficients are not comparable. <br>
+
+## 3
+
+```{r}
+nhanes_raw_grp_age_diabetes = nhanes_raw %>% 
+  group_by(Age, Diabetes) %>% summarise(wt_sum = sum(WTINT2YR))
+
+nhanes_raw_grp_age = nhanes_raw %>% 
+  group_by(Age) %>% summarise(wt_sum = sum(WTINT2YR))
+
+nhanes_prop = nhanes_raw_grp_age_diabetes %>%  left_join(nhanes_raw_grp_age, by = 'Age') %>% 
+  mutate(age_diabetes_prop = wt_sum.x/wt_sum.y) %>% filter(Diabetes == 1)
+```
+
+```{r}
+ggplot(nhanes_prop, aes(Age, age_diabetes_prop)) + geom_point() +
+  stat_function(fun = our.logit, color = "orange") + labs(title ="Proportion of people with diabetes by Age and Logit model" ,x ="Age" ,y = "Proportion of U.S citizens with diabetes")
+```
+
+The curve for the proportions for people who have diabetes does not match with the curve for logits using weights. <br>
+The weights for people which do not have diabetes is very high compared to people who have diabetes, therefore, our model only predicts 0.
+
